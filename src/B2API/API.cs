@@ -183,19 +183,18 @@ namespace B2API
         }
 
         /// <summary>
-        /// Downloads the provided file
+        /// Downloads the provided file. this function allowes for downloading large files without storing in memory
         /// </summary>
-        /// <param name="bucket">Bucket file is in</param>
         /// <param name="file">File object to download</param>
         /// <param name="filename">filename to save file as</param>
         /// <returns>Task object</returns>
-        public async Task DownloadFile(B2Bucket bucket, B2File file, string filename)
+        public async Task DownloadFile(B2File file, string filename)
         {
             var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("Authorization", _authToken);
-            string url = _downloadUrl + "/file/" + bucket.bucketName + "/" + file.fileName;
-            HttpResponseMessage response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-
+            HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, _downloadUrl + "/b2api/v1/b2_download_file_by_id");
+            msg.Headers.Add("Authorization", _authToken);
+            msg.Content = new StringContent("{\"fileId\":\"" + file.fileId + "\"}");
+            HttpResponseMessage response = await client.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead);
             if (!response.IsSuccessStatusCode)
             {
                 throw new B2Exception(response.Content.ToString())
@@ -214,7 +213,62 @@ namespace B2API
                     }
                 }
             }
-        } 
+        }
+
+        /// <summary>
+        /// Deletes the provided file
+        /// </summary>
+        /// <param name="file">file object to delete</param>
+        /// <returns>file object deleted</returns>
+        public async Task<B2File> DeleteFile(B2File file)
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("Authorization", _authToken);
+            string content = "{\"fileName\":\"" + file.fileName + "\",\n" +
+                             "\"fileId\":\"" + file.fileId + "\"}";
+            var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_delete_file_version", new StringContent(content));
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new B2Exception(response.Content.ToString())
+                {
+                    HttpStatusCode = response.StatusCode.ToString(),
+                    ErrorCode = response.ReasonPhrase
+                };
+            }
+            else
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                B2File deletedFile = JsonConvert.DeserializeObject<B2File>(json);
+                return deletedFile;
+            }
+        }
+
+        /// <summary>
+        /// Gets a upload url and auth token for a upload
+        /// </summary>
+        /// <param name="bucket">bucket uploading to</param>
+        /// <returns>upload url object</returns>
+        private async Task<B2UploadUrl> GetUploadURL(B2Bucket bucket)
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("Authorization", _authToken);
+            string content = "{\"bucketId\":\"" + bucket.bucketId + "\"}";
+            var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_get_upload_url", new StringContent(content));
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new B2Exception(response.Content.ToString())
+                {
+                    HttpStatusCode = response.StatusCode.ToString(),
+                    ErrorCode = response.ReasonPhrase
+                };
+            }
+            else
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                B2UploadUrl uploadurl = JsonConvert.DeserializeObject<B2UploadUrl>(json);
+                return uploadurl;
+            }
+        }
     }
 }
 

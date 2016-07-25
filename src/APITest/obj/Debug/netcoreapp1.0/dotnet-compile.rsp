@@ -1,5 +1,5 @@
---temp-output:C:\Users\james\documents\visual studio 2015\Projects\B2API\src\APITest\obj\Debug\netcoreapp1.0\
---out:C:\Users\james\documents\visual studio 2015\Projects\B2API\src\APITest\bin\Debug\netcoreapp1.0\APITest.dll
+--temp-output:C:\Users\james\Desktop\temp\B2backblazeCore\src\APITest\obj\Debug\netcoreapp1.0\
+--out:C:\Users\james\Desktop\temp\B2backblazeCore\src\APITest\bin\Debug\netcoreapp1.0\APITest.dll
 --define:DEBUG
 --define:TRACE
 --define:NETCOREAPP1_0
@@ -88,6 +88,6 @@
 --reference:C:\Users\james\.nuget\packages\System.Threading.Timer\4.0.1\ref\netstandard1.2\System.Threading.Timer.dll
 --reference:C:\Users\james\.nuget\packages\System.Xml.ReaderWriter\4.0.11\ref\netstandard1.3\System.Xml.ReaderWriter.dll
 --reference:C:\Users\james\.nuget\packages\System.Xml.XDocument\4.0.11\ref\netstandard1.3\System.Xml.XDocument.dll
---reference:C:\Users\james\documents\visual studio 2015\Projects\B2API\src\B2API\bin\Debug\netstandard1.6\B2API.dll
-C:\Users\james\documents\visual studio 2015\Projects\B2API\src\APITest\Program.cs
-C:\Users\james\documents\visual studio 2015\Projects\B2API\src\APITest\Properties\AssemblyInfo.cs
+--reference:C:\Users\james\Desktop\temp\B2backblazeCore\src\B2API\bin\Debug\netstandard1.6\B2API.dll
+C:\Users\james\Desktop\temp\B2backblazeCore\src\APITest\Program.cs
+C:\Users\james\Desktop\temp\B2backblazeCore\src\APITest\Properties\AssemblyInfo.cs
