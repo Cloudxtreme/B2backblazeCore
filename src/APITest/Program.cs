@@ -10,18 +10,29 @@ namespace APITest
         public static void Main(string[] args)
         {
             B2API.B2API t = new B2API.B2API();
-            bool r = t.AuthorizeAccount("5685b21a6d74", "001e1849ad73e3d19af02700318ccbf6adf1dea51b").Result;
+            bool r = t.AuthorizeAccount("", "").Result;
             List<B2API.B2Bucket> buckets =  t.ListBuskets().Result;
             List<B2API.B2File> files = t.ListFiles(buckets[1]).Result;
-            var dl = t.DownloadFile(files[0], "test.jpg");
-            Console.WriteLine();
-            Console.Write("Downloading...");
-            while (!dl.IsCompleted)
+            //var dl = t.DownloadFile(files[0], "test.jpg");
+            //Console.WriteLine();
+            //Console.Write("Downloading...");
+            //while (!dl.IsCompleted)
+            //{
+            //    Console.Write(".");
+            //    System.Threading.Thread.Sleep(500);
+            //}
+            //Console.WriteLine("Complete");
+
+            byte[] bytes = System.IO.File.ReadAllBytes("test.jpg");
+            var ul = t.UploadSmallFile(buckets[1], "test5.jpg", bytes);
+
+            Console.Write("Uploading...");
+            while (!ul.IsCompleted)
             {
                 Console.Write(".");
                 System.Threading.Thread.Sleep(500);
             }
-            Console.WriteLine("Complete");            
+            Console.WriteLine("Complete");
         }
     }
 }

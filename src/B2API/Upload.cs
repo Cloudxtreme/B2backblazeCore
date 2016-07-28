@@ -11,4 +11,11 @@ namespace B2API
         public string uploadUrl;
         public string authorizationToken;
     }
+
+    public class B2UploadPartUrl
+    {
+        public string authorizationToken;
+        public string fileId;
+        public string uploadUrl;
+    }
 }

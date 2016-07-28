@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Text;
 using Newtonsoft.Json;
 using System.IO;
+using System.Security.Cryptography;
 
 namespace B2API
 {
@@ -45,10 +46,11 @@ namespace B2API
             var response = await client.GetAsync("https://api.backblaze.com/b2api/v1/b2_authorize_account");
             if (!response.IsSuccessStatusCode)
             {
-                throw new B2Exception(response.Content.ToString())
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
                 {
-                    HttpStatusCode = response.StatusCode.ToString(),
-                    ErrorCode = response.ReasonPhrase
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
                 };
             }
             else
@@ -73,10 +75,11 @@ namespace B2API
             var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_list_buckets", new StringContent("{\"accountId\":\"" + _accountId + "\"}"));
             if (!response.IsSuccessStatusCode)
             {
-                throw new B2Exception(response.Content.ToString())
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
                 {
-                    HttpStatusCode = response.StatusCode.ToString(),
-                    ErrorCode = response.ReasonPhrase
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
                 };
             }
             else
@@ -105,10 +108,11 @@ namespace B2API
             var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_create_bucket", new StringContent(content));
             if (!response.IsSuccessStatusCode)
             {
-                throw new B2Exception(response.Content.ToString())
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
                 {
-                    HttpStatusCode = response.StatusCode.ToString(),
-                    ErrorCode = response.ReasonPhrase
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
                 };
             }
             else
@@ -136,10 +140,11 @@ namespace B2API
             var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_update_bucket", new StringContent(content));
             if (!response.IsSuccessStatusCode)
             {
-                throw new B2Exception(response.Content.ToString())
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
                 {
-                    HttpStatusCode = response.StatusCode.ToString(),
-                    ErrorCode = response.ReasonPhrase
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
                 };
             }
             else
@@ -167,10 +172,11 @@ namespace B2API
             var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_list_file_names", new StringContent(content));
             if (!response.IsSuccessStatusCode)
             {
-                throw new B2Exception(response.Content.ToString())
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
                 {
-                    HttpStatusCode = response.StatusCode.ToString(),
-                    ErrorCode = response.ReasonPhrase
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
                 };
             }
             else
@@ -197,10 +203,11 @@ namespace B2API
             HttpResponseMessage response = await client.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead);
             if (!response.IsSuccessStatusCode)
             {
-                throw new B2Exception(response.Content.ToString())
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
                 {
-                    HttpStatusCode = response.StatusCode.ToString(),
-                    ErrorCode = response.ReasonPhrase
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
                 };
             }
             else
@@ -211,6 +218,37 @@ namespace B2API
                     {
                         await streamToReadFrom.CopyToAsync(streamToWriteTo);
                     }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Download a file to a provided stream
+        /// </summary>
+        /// <param name="file">File object to download</param>
+        /// <param name="streamToWriteTo">Stream to write downloaded file to</param>
+        /// <returns>Task object</returns>
+        public async Task DownloadFile(B2File file, Stream streamToWriteTo)
+        {
+            var client = new HttpClient();
+            HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, _downloadUrl + "/b2api/v1/b2_download_file_by_id");
+            msg.Headers.Add("Authorization", _authToken);
+            msg.Content = new StringContent("{\"fileId\":\"" + file.fileId + "\"}");
+            HttpResponseMessage response = await client.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead);
+            if (!response.IsSuccessStatusCode)
+            {
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
+                {
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
+                };
+            }
+            else
+            {
+                using (Stream streamToReadFrom = await response.Content.ReadAsStreamAsync())
+                {
+                    await streamToReadFrom.CopyToAsync(streamToWriteTo);
                 }
             }
         }
@@ -229,10 +267,11 @@ namespace B2API
             var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_delete_file_version", new StringContent(content));
             if (!response.IsSuccessStatusCode)
             {
-                throw new B2Exception(response.Content.ToString())
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
                 {
-                    HttpStatusCode = response.StatusCode.ToString(),
-                    ErrorCode = response.ReasonPhrase
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
                 };
             }
             else
@@ -256,16 +295,109 @@ namespace B2API
             var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_get_upload_url", new StringContent(content));
             if (!response.IsSuccessStatusCode)
             {
-                throw new B2Exception(response.Content.ToString())
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
                 {
-                    HttpStatusCode = response.StatusCode.ToString(),
-                    ErrorCode = response.ReasonPhrase
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
                 };
             }
             else
             {
                 var json = await response.Content.ReadAsStringAsync();
                 B2UploadUrl uploadurl = JsonConvert.DeserializeObject<B2UploadUrl>(json);
+                return uploadurl;
+            }
+        }
+
+        /// <summary>
+        /// Uploads a file to the provided bucket. should only be used for small files as the file contents are loaded into memory
+        /// </summary>
+        /// <param name="bucket">bucket to upload to</param>
+        /// <param name="fileName">filename to save file in the bucket</param>
+        /// <param name="fileBytes">file data in a byte form</param>
+        /// <param name="fileContentType">File content type, default: b2/x-auto</param>
+        /// <returns>File object for the uploaded file</returns>
+        public async Task<B2File> UploadSmallFile(B2Bucket bucket, string fileName, byte[] fileBytes, string fileContentType = "b2/x-auto")
+        {
+            bool success = false;
+            int maxfailures = 2;        //AS per the API recomendation
+            while (!success)
+            {
+
+                B2UploadUrl uploadURL = GetUploadURL(bucket).Result;
+
+                //Generate the sha1 hash required for the upload
+                SHA1 sha1 = SHA1.Create();
+                byte[] hashData = sha1.ComputeHash(fileBytes, 0, fileBytes.Length);
+
+                StringBuilder sb = new StringBuilder();
+                foreach (byte b in hashData)
+                {
+                    sb.Append(b.ToString("x2"));
+                }
+                string sha1Str = sb.ToString();
+
+                var client = new HttpClient();
+                client.DefaultRequestHeaders.Add("Authorization", uploadURL.authorizationToken);
+                client.DefaultRequestHeaders.Add("X-Bz-File-Name", fileName);
+                client.DefaultRequestHeaders.Add("X-Bz-Content-Sha1", sha1Str);
+
+                HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, uploadURL.uploadUrl);
+                msg.Content = new ByteArrayContent(fileBytes);
+                msg.Content.Headers.ContentLength = fileBytes.Length;
+                msg.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(fileContentType);
+                var response = await client.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead);
+            
+                string t = await response.Content.ReadAsStringAsync();
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (maxfailures < 0)
+                    {
+                        B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                        throw new B2Exception(error.message)
+                        {
+                            HttpStatusCode = error.status,
+                            ErrorCode = error.code
+                        };
+                    }
+                    maxfailures--;
+                }
+                else
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    B2File uploadedFile = JsonConvert.DeserializeObject<B2File>(json);
+                    return uploadedFile;
+                }
+            }
+
+            return null; //should never get here
+        }
+
+        /// <summary>
+        /// Gets a file upload url for a multi part file upload
+        /// </summary>
+        /// <param name="fileid">it profided by start file part</param>
+        /// <returns>B2UploadPartUrl object</returns>
+        private async Task<B2UploadPartUrl> GetUploadPartURL(string fileid)
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("Authorization", _authToken);
+            string content = "{\"fileId\":\"" + fileid + "\"}";
+            var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_get_upload_part_url", new StringContent(content));
+            if (!response.IsSuccessStatusCode)
+            {
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
+                {
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
+                };
+            }
+            else
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                B2UploadPartUrl uploadurl = JsonConvert.DeserializeObject<B2UploadPartUrl>(json);
                 return uploadurl;
             }
         }
