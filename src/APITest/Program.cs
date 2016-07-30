@@ -13,7 +13,7 @@ namespace APITest
             B2API.B2API t = new B2API.B2API();
 
             //Authorize B2 account
-            bool r = t.AuthorizeAccount("5685b21a6d74", "0018fe57af050433517039463af3a67e56fe3172a7").Result;
+            bool r = t.AuthorizeAccount("", "").Result;
 
             //get a list of buckets
             List<B2API.B2Bucket> buckets =  t.ListBuskets().Result;
