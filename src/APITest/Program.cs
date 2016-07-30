@@ -9,28 +9,42 @@ namespace APITest
     {
         public static void Main(string[] args)
         {
+            //Creat a new API object
             B2API.B2API t = new B2API.B2API();
-            bool r = t.AuthorizeAccount("", "").Result;
+
+            //Authorize B2 account
+            bool r = t.AuthorizeAccount("5685b21a6d74", "0018fe57af050433517039463af3a67e56fe3172a7").Result;
+
+            //get a list of buckets
             List<B2API.B2Bucket> buckets =  t.ListBuskets().Result;
-            List<B2API.B2File> files = t.ListFiles(buckets[1]).Result;
-            //var dl = t.DownloadFile(files[0], "test.jpg");
-            //Console.WriteLine();
-            //Console.Write("Downloading...");
-            //while (!dl.IsCompleted)
-            //{
-            //    Console.Write(".");
-            //    System.Threading.Thread.Sleep(500);
-            //}
-            //Console.WriteLine("Complete");
 
-            byte[] bytes = System.IO.File.ReadAllBytes("test.jpg");
-            var ul = t.UploadSmallFile(buckets[1], "test5.jpg", bytes);
+            //get a list of files in the first bucket
+            List<B2API.B2File> files = t.ListFiles(buckets[0]).Result;
 
-            Console.Write("Uploading...");
-            while (!ul.IsCompleted)
+            //download first file in first bucket
+            var dl = t.DownloadFile(files[0], "test.jpg");
+            
+            //wait for download to finish
+            Console.WriteLine();
+            Console.Write("Downloading...");  
+            while (!dl.IsCompleted)
             {
                 Console.Write(".");
                 System.Threading.Thread.Sleep(500);
+            }
+            Console.WriteLine("Complete");
+
+            //upload file to bucket
+            using (var fileStream = new System.IO.FileStream("test.jpg", System.IO.FileMode.Open, System.IO.FileAccess.Read))
+            {
+                var ul = t.UploadLargeFile(buckets[1], fileStream, "largetest.jpg", 2);
+                //wait for file upload to finish
+                Console.Write("Uploading...");
+                while (!ul.IsCompleted)
+                {
+                    Console.Write(".");
+                    System.Threading.Thread.Sleep(500);
+                }
             }
             Console.WriteLine("Complete");
         }

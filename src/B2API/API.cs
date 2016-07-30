@@ -347,9 +347,8 @@ namespace B2API
                 msg.Content = new ByteArrayContent(fileBytes);
                 msg.Content.Headers.ContentLength = fileBytes.Length;
                 msg.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(fileContentType);
-                var response = await client.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead);
-            
-                string t = await response.Content.ReadAsStringAsync();
+                var response = await client.SendAsync(msg);
+
                 if (!response.IsSuccessStatusCode)
                 {
                     if (maxfailures < 0)
@@ -400,6 +399,206 @@ namespace B2API
                 B2UploadPartUrl uploadurl = JsonConvert.DeserializeObject<B2UploadPartUrl>(json);
                 return uploadurl;
             }
+        }
+
+        /// <summary>
+        /// Starts the large file upload process
+        /// </summary>
+        /// <param name="bucket">Bucket object to upload to</param>
+        /// <param name="fileName">Name to save file as in bucket</param>
+        /// <param name="fileContentType">file content type</param>
+        /// <returns></returns>
+        private async Task<B2LargeFileUpload> StartLargeFile(B2Bucket bucket, string fileName, string fileContentType)
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("Authorization", _authToken);
+            string content =    "{\"bucketId\":\"" + bucket.bucketId + "\",\n" +
+                                "\"fileName\":\"" + fileName + "\",\n" +
+                                "\"contentType\":\"" + fileContentType + "\"}";
+            var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_start_large_file", new StringContent(content));
+            if (!response.IsSuccessStatusCode)
+            {
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
+                {
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
+                };
+            }
+            else
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                B2LargeFileUpload deletedFile = JsonConvert.DeserializeObject<B2LargeFileUpload>(json);
+                return deletedFile;
+            }
+        }
+
+        /// <summary>
+        /// Upload a file part 
+        /// </summary>
+        /// <param name="largeFile">B2LargeFileUpload object from StartLargeFile</param>
+        /// <param name="fileBytes">file data to upload</param>
+        /// <param name="sha1Str">sha1 checksum for the upload</param>
+        /// <param name="fileContentType">file content type</param>
+        /// <param name="partNumber">file part sequence number</param>
+        /// <returns></returns>
+        private async Task<bool> UploadFilePart(B2LargeFileUpload largeFile, byte[] fileBytes, string sha1Str, string fileContentType, int partNumber)
+        {
+            bool success = false;
+            int maxfailures = 5;        //AS per the API recomendation
+            while (!success)
+            {
+                B2UploadPartUrl uploadURL = GetUploadPartURL(largeFile.fileId).Result;
+                //Generate the sha1 hash required for the uploa
+
+                var client = new HttpClient();
+                client.DefaultRequestHeaders.Add("Authorization", uploadURL.authorizationToken);
+                client.DefaultRequestHeaders.Add("X-Bz-Content-Sha1", sha1Str);
+                client.DefaultRequestHeaders.Add("X-Bz-Part-Number", partNumber.ToString());
+
+                HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, uploadURL.uploadUrl);
+                msg.Content = new ByteArrayContent(fileBytes);
+                msg.Content.Headers.ContentLength = fileBytes.Length;
+                msg.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(fileContentType);
+                var response = await client.SendAsync(msg);
+
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (maxfailures < 0)
+                    {
+                        B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                        throw new B2Exception(error.message)
+                        {
+                            HttpStatusCode = error.status,
+                            ErrorCode = error.code
+                        };
+                    }
+                    maxfailures--;
+                }
+                else
+                {
+                    // var json = await response.Content.ReadAsStringAsync();
+                    // B2File uploadedFile = JsonConvert.DeserializeObject<B2File>(json);
+                    return true;
+                }
+            }
+
+            return false; //should never get here
+        }
+
+        /// <summary>
+        /// Returns the sha1 checksume of the provided file bytes
+        /// </summary>
+        /// <param name="fileBytes">data to calulate checksum</param>
+        /// <returns>string of the checksum</returns>
+        private string GetSha1Checksum(byte[] fileBytes)
+        {
+            SHA1 sha1 = SHA1.Create();
+            byte[] hashData = sha1.ComputeHash(fileBytes, 0, fileBytes.Length);
+
+            StringBuilder sb = new StringBuilder();
+            foreach (byte b in hashData)
+            {
+                sb.Append(b.ToString("x2"));
+            }
+            string sha1Str = sb.ToString();
+            return sha1Str;
+        }
+
+        /// <summary>
+        /// Finish the largefile upload process
+        /// </summary>
+        /// <param name="sha1array">array of file part checksums</param>
+        /// <param name="fileUpload">B2LargeFileUpload object from StartLargeFile</param>
+        /// <returns>B2LargeFile object of the new file</returns>
+        private async Task<B2LargeFile> FinishLargeFile(List<string> sha1array, B2LargeFileUpload fileUpload)
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("Authorization", _authToken);
+            string content = "{\"fileId\":\"" + fileUpload.fileId + "\",\n" +
+                                "\"partSha1Array\":\n" +
+                                "[\n";
+            foreach (string sha1 in sha1array)
+            {
+                content = content + "\"" + sha1 + "\",\n";
+            }
+            content = content.Substring(0, content.Length - 2);
+            content = content + "]\n}\n";
+            var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_finish_large_file", new StringContent(content));
+            if (!response.IsSuccessStatusCode)
+            {
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
+                {
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
+                };
+            }
+            else
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                B2LargeFile deletedFile = JsonConvert.DeserializeObject<B2LargeFile>(json);
+                return deletedFile;
+            }
+        }
+
+        /// <summary>
+        /// Upload a large file in chunks
+        /// </summary>
+        /// <param name="bucket">Bucket object to upload to</param>
+        /// <param name="fileStream">filetream to upload</param>
+        /// <param name="fileName">name of file to save in the bucket</param>
+        /// <param name="threads">number of simultaneous upload threads</param>
+        /// <param name="blockSize">block size for each file part, minimum block size is 100000000 bytes (100mb) </param>
+        /// <param name="fileContentType">fine content type</param>
+        /// <returns>B2LargeFile object of the new file</returns>
+        public async Task<B2LargeFile> UploadLargeFile(B2Bucket bucket, Stream fileStream, string fileName, int threads = 2, int blockSize=100000000, string fileContentType = "b2/x-auto")
+        {
+            B2LargeFileUpload largefile = (await StartLargeFile(bucket, fileName, fileContentType));
+            int filepart = 1;
+            int lastSizeRead = blockSize;
+            List<string> sha1values = new List<string>();
+
+            Task<bool>[] tasks = new Task<bool>[threads];
+
+            for (int i = 0; i < threads; i++)
+            {
+                if (lastSizeRead == blockSize)
+                {
+                    byte[] bytes = new byte[blockSize];
+                    lastSizeRead = fileStream.ReadAsync(bytes, 0, blockSize).Result;
+                    string sha1 = GetSha1Checksum(bytes);
+                    sha1values.Add(sha1);                    
+                    tasks[i] = UploadFilePart(largefile, bytes, sha1, fileContentType, filepart);
+                    filepart++;
+                }
+            }
+
+            while (lastSizeRead == blockSize)
+            {
+                for (int i = 0; i < threads; i++)
+                {
+                    if (tasks[i].IsCompleted && lastSizeRead == blockSize)
+                    {                        
+                        byte[] bytes = new byte[blockSize];
+                        lastSizeRead = fileStream.ReadAsync(bytes, 0, blockSize).Result;
+                        string sha1 = GetSha1Checksum(bytes);
+                        sha1values.Add(sha1);
+                        
+                        tasks[i] = UploadFilePart(largefile, bytes, sha1, fileContentType, filepart);
+                        filepart++;
+                    }
+                }
+            }
+
+            for (int i = 0; i < threads; i++)
+            {
+                if (tasks[i] != null)
+                    tasks[i].Wait();
+            }
+
+            return FinishLargeFile(sha1values, largefile).Result;
         }
     }
 }
