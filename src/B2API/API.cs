@@ -271,7 +271,7 @@ namespace B2API
         /// <param name="file">File object to download</param>
         /// <param name="filename">filename to save file as</param>
         /// <returns>Task object</returns>
-        public async Task DownloadFile(B2File file, string filename)
+        public async Task DownloadFileByID(B2File file, string filename)
         {
             var client = new HttpClient();
             HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, _downloadUrl + "/b2api/v1/b2_download_file_by_id");

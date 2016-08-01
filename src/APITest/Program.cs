@@ -22,7 +22,7 @@ namespace APITest
             List<B2API.B2File> files = t.ListFileNames(buckets[0]).Result;
 
             //download first file in first bucket
-            var dl = t.DownloadFile(files[0], "test.jpg");
+            var dl = t.DownloadFileByID(files[0], "test.jpg");
             
             //wait for download to finish
             Console.WriteLine();
