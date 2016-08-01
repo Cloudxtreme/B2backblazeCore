@@ -4,9 +4,19 @@
         <name>B2API</name>
     </assembly>
     <members>
+        <member name="T:B2API.B2API">
+            <summary>
+            A simple API for Backblazes B2 service that uses .net core
+            </summary>
+        </member>
+        <member name="M:B2API.B2API.#ctor">
+            <summary>
+            
+            </summary>
+        </member>
         <member name="M:B2API.B2API.AuthorizeAccount(System.String,System.String)">
             <summary>
-            Authorizes the user accoung and key and gets the api url
+            Used to log in to the B2 API.
             Must be the first function called
             </summary>
             <param name="accountId">B2 Account ID</param>
@@ -15,34 +25,60 @@
         </member>
         <member name="M:B2API.B2API.ListBuskets">
             <summary>
-            Gets a list of the users current buckets
+            Lists buckets associated with an account, in alphabetical order by bucket ID. 
             </summary>
-            <returns>A list of Buckets</returns>
+            <returns>A list of Bucket objects</returns>
         </member>
         <member name="M:B2API.B2API.CreateBucket(System.String,B2API.B2BucketType)">
             <summary>
-            Creats a new bucket
+            Creates a new bucket. A bucket belongs to the account used to create it.
             </summary>
-            <param name="bucketName">Name of the new bucket between 6 and 5 chars</param>
-            <param name="bucketType">Bucket type, private or public</param>
+            <param name="bucketName">The name to give the new bucket.
+                                     Bucket names must be a minimum of 6 and a maximum of 50 characters long, and must be globally unique; 
+                                     two different B2 accounts cannot have buckets with the name name. Bucket names can consist of: letters, 
+                                     digits, and "-". Bucket names cannot start with "b2-"; these are reserved for internal Backblaze use. </param>
+            <param name="bucketType">Either "allPublic", meaning that files in this bucket can be downloaded by anybody, or "allPrivate", 
+                                     meaning that you need a bucket authorization token to download the files. </param>
             <returns>New bucket object</returns>
         </member>
-        <member name="M:B2API.B2API.ChangeBucketType(B2API.B2Bucket,B2API.B2BucketType)">
+        <member name="M:B2API.B2API.UpdateBucket(B2API.B2Bucket,B2API.B2BucketType)">
             <summary>
-            Updates the bucket type (Private/Public)
+            Modifies the bucketType of an existing bucket. Can be used to allow everyone to download the contents of the bucket without 
+            providing any authorization, or to prevent anyone from downloading the contents of the bucket without providing a bucket auth token. 
             </summary>
-            <param name="bucket">Bucket you would like to change</param>
-            <param name="newBucketType">New bucket type</param>
-            <returns>Modified bucket</returns>
+            <param name="bucket">Bucket object to update</param>
+            <param name="newBucketType">Either "allPublic", meaning that files in this bucket can be downloaded by anybody, or "allPrivate", 
+                                        meaning that you need a bucket authorization token to download the files. </param>
+            <returns>Modified bucket object</returns>
         </member>
-        <member name="M:B2API.B2API.ListFiles(B2API.B2Bucket,System.String,System.Int32)">
+        <member name="M:B2API.B2API.ListFileNames(B2API.B2Bucket,System.String,System.Int32)">
             <summary>
-            Returns a list of files
+            This call returns at most 1000 file names, but it can be called repeatedly to scan through all of the file names in a bucket. Each time 
+            you call, the last file retunred can be used as the starting point for the next call. 
             </summary>
-            <param name="bucket">Bucket to get list of files from</param>
-            <param name="startFromFileName">Optional: start the list from this file name (i.e. the last file returned)</param>
+            <param name="bucket">Bucket object to look for file names in.</param>
+            <param name="startFromFileName">The first file name to return. If there is a file with this name, it will be returned in the list. If not,
+                                            the first file name after thi. </param>
             <param name="returncount">Optional: Number of file names to return max: 1000 default: 1000</param>
             <returns>A List of file objects</returns>
+        </member>
+        <member name="M:B2API.B2API.ListFileVersions(B2API.B2Bucket,System.String,System.Int32)">
+            <summary>
+            Lists all of the versions of all of the files contained in one bucket, in alphabetical order by file name, and by reverse of date/time uploaded 
+            for versions of files with the same name. 
+            </summary>
+            <param name="bucket">Bucket object to look for file names in.</param>
+            <param name="startFromFileName">The first file name to return. If there is a file with this name, it will be returned in the list. If not,
+                                            the first file name after thi. </param>
+            <param name="returncount">Optional: Number of file names to return max: 1000 default: 1000</param>
+            <returns>A List of file objects</returns>
+        </member>
+        <member name="M:B2API.B2API.GetFileInfo(B2API.B2File)">
+            <summary>
+            Gets information about one file stored in B2. 
+            </summary>
+            <param name="file">b2File object</param>
+            <returns>B2FileInfo object</returns>
         </member>
         <member name="M:B2API.B2API.DownloadFile(B2API.B2File,System.String)">
             <summary>
@@ -52,43 +88,55 @@
             <param name="filename">filename to save file as</param>
             <returns>Task object</returns>
         </member>
-        <member name="M:B2API.B2API.DownloadFile(B2API.B2File,System.IO.Stream)">
+        <member name="M:B2API.B2API.DownloadFileByID(B2API.B2File,System.IO.Stream)">
             <summary>
-            Download a file to a provided stream
+            Downloads one file from B2. 
             </summary>
             <param name="file">File object to download</param>
             <param name="streamToWriteTo">Stream to write downloaded file to</param>
             <returns>Task object</returns>
         </member>
-        <member name="M:B2API.B2API.DeleteFile(B2API.B2File)">
+        <member name="M:B2API.B2API.DownloadFileByName(B2API.B2Bucket,B2API.B2File,System.IO.Stream)">
+            <summary>
+            Downloads one file by providing the name of the bucket and the name of the file. 
+            </summary>
+            <param name="bucket">Bucket object to download from</param>
+            <param name="file">File object to download</param>
+            <param name="streamToWriteTo">filestream to write data to</param>
+            <returns>Task object</returns>
+        </member>
+        <member name="M:B2API.B2API.DeleteFileVersion(B2API.B2File)">
             <summary>
             Deletes the provided file
             </summary>
-            <param name="file">file object to delete</param>
-            <returns>file object deleted</returns>
+            <param name="file">File object to delete</param>
+            <returns>the file object just deleted</returns>
         </member>
         <member name="M:B2API.B2API.GetUploadURL(B2API.B2Bucket)">
             <summary>
             Gets a upload url and auth token for a upload
             </summary>
-            <param name="bucket">bucket uploading to</param>
-            <returns>upload url object</returns>
+            <param name="bucket">Bucket object you wish to upload to</param>
+            <returns>Upload url object</returns>
         </member>
-        <member name="M:B2API.B2API.UploadSmallFile(B2API.B2Bucket,System.String,System.Byte[],System.String)">
+        <member name="M:B2API.B2API.UploadFile(B2API.B2Bucket,B2API.B2UploadUrl,System.String,System.Byte[],System.String)">
             <summary>
-            Uploads a file to the provided bucket. should only be used for small files as the file contents are loaded into memory
+            Uploads one file to B2, returning its unique file ID.
             </summary>
-            <param name="bucket">bucket to upload to</param>
-            <param name="fileName">filename to save file in the bucket</param>
-            <param name="fileBytes">file data in a byte form</param>
-            <param name="fileContentType">File content type, default: b2/x-auto</param>
+            <param name="bucket">Bucket object to upload the file to</param>
+            <param name="uploadURL">Upload URL object from GetUploadURL</param>
+            <param name="fileName">The name of the file</param>
+            <param name="fileBytes">The file data in a byte form</param>
+            <param name="fileContentType">The MIME type of the content of the file, which will be returned in the Content-Type header when downloading 
+                                          the file. Use the Content-Type b2/x-auto to automatically set the stored Content-Type post upload. In the case 
+                                          where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
             <returns>File object for the uploaded file</returns>
         </member>
         <member name="M:B2API.B2API.GetUploadPartURL(System.String)">
             <summary>
             Gets a file upload url for a multi part file upload
             </summary>
-            <param name="fileid">it profided by start file part</param>
+            <param name="fileid">ID profided by start file part</param>
             <returns>B2UploadPartUrl object</returns>
         </member>
         <member name="M:B2API.B2API.StartLargeFile(B2API.B2Bucket,System.String,System.String)">
@@ -96,47 +144,275 @@
             Starts the large file upload process
             </summary>
             <param name="bucket">Bucket object to upload to</param>
-            <param name="fileName">Name to save file as in bucket</param>
-            <param name="fileContentType">file content type</param>
-            <returns></returns>
+            <param name="fileName">The name of the file</param>
+            <param name="fileContentType">The MIME type of the content of the file, which will be returned in the Content-Type header when downloading 
+                                          the file. Use the Content-Type b2/x-auto to automatically set the stored Content-Type post upload. In the case 
+                                          where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
+            <returns>B2File object</returns>
         </member>
-        <member name="M:B2API.B2API.UploadFilePart(B2API.B2LargeFileUpload,System.Byte[],System.String,System.String,System.Int32)">
+        <member name="M:B2API.B2API.UploadPart(B2API.B2File,B2API.B2UploadPartUrl,System.Byte[],System.String,System.String,System.Int32)">
             <summary>
-            Upload a file part 
+            Uploads one part of a large file to B2, using an file ID obtained from StartLargeFile
             </summary>
-            <param name="largeFile">B2LargeFileUpload object from StartLargeFile</param>
-            <param name="fileBytes">file data to upload</param>
-            <param name="sha1Str">sha1 checksum for the upload</param>
-            <param name="fileContentType">file content type</param>
-            <param name="partNumber">file part sequence number</param>
-            <returns></returns>
+            <param name="largeFile">B2File object from StartLargeFile</param>
+            <param name="uploadURL">UploadPartURL object from GetUploadPartURL</param>
+            <param name="fileBytes">File data to upload</param>
+            <param name="sha1Str">SHA1 checksum for the upload</param>
+            <param name="fileContentType">The MIME type of the content of the file, which will be returned in the Content-Type header when downloading 
+                                          the file. Use the Content-Type b2/x-auto to automatically set the stored Content-Type post upload. In the case 
+                                          where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
+            <param name="partNumber">A number from 1 to 10000. The parts uploaded for one file must have contiguous numbers, starting with 1. </param>
+            <returns>True on success</returns>
+        </member>
+        <member name="M:B2API.B2API.FinishLargeFile(System.Collections.Generic.List{System.String},B2API.B2File)">
+            <summary>
+            Converts the parts that have been uploaded into a single B2 file.
+            </summary>
+            <param name="sha1array">An array of hex SHA1 checksums of the parts of the large file. This is a double-check that the right parts were 
+                                    uploaded in the right order, and that none were missed. Note that the part numbers start at 1, and the SHA1 of the
+                                    part 1 is the first string in the array, at index 0. </param>
+            <param name="fileUpload">B2File object from StartLargeFile</param>
+            <returns>B2File object of the new file</returns>
+        </member>
+        <member name="M:B2API.B2API.CancelLargeFile(B2API.B2File)">
+            <summary>
+            Cancels the upload of a large file, and deletes all of the parts that have been uploaded.
+            </summary>
+            <param name="fileUpload">B2File object to cancel</param>
+            <returns>B2File object of the canceled upload</returns>
+        </member>
+        <member name="M:B2API.B2API.ListUnfinishedLargeFiles(B2API.B2Bucket,System.String,System.Int32)">
+            <summary>
+            Lists information about large file uploads that have been started, but have not been finished or canceled.
+            </summary>
+            <param name="bucket">The bucket to look for file names in.</param>
+            <param name="startFromFileName">The first upload to return. If there is an upload with this ID, it will be 
+                                            returned in the list. If not, the first upload after this the first one after this ID. 
+                                            </param>
+            <param name="returncount">The maximum number of files to return from this call. The default value is 100, and the maximum allowed is 100.</param>
+            <returns>A List of file uploads that have been started, but have not been finished or canceled.</returns>
         </member>
         <member name="M:B2API.B2API.GetSha1Checksum(System.Byte[])">
             <summary>
-            Returns the sha1 checksume of the provided file bytes
+            Returns the SHA1 checksume of the provided file bytes
             </summary>
-            <param name="fileBytes">data to calulate checksum</param>
-            <returns>string of the checksum</returns>
-        </member>
-        <member name="M:B2API.B2API.FinishLargeFile(System.Collections.Generic.List{System.String},B2API.B2LargeFileUpload)">
-            <summary>
-            Finish the largefile upload process
-            </summary>
-            <param name="sha1array">array of file part checksums</param>
-            <param name="fileUpload">B2LargeFileUpload object from StartLargeFile</param>
-            <returns>B2LargeFile object of the new file</returns>
+            <param name="fileBytes">Data to calulate checksum</param>
+            <returns>hex String of the checksum</returns>
         </member>
         <member name="M:B2API.B2API.UploadLargeFile(B2API.B2Bucket,System.IO.Stream,System.String,System.Int32,System.Int32,System.String)">
             <summary>
             Upload a large file in chunks
             </summary>
             <param name="bucket">Bucket object to upload to</param>
-            <param name="fileStream">filetream to upload</param>
-            <param name="fileName">name of file to save in the bucket</param>
-            <param name="threads">number of simultaneous upload threads</param>
-            <param name="blockSize">block size for each file part, minimum block size is 100000000 bytes (100mb) </param>
-            <param name="fileContentType">fine content type</param>
-            <returns>B2LargeFile object of the new file</returns>
+            <param name="fileStream">Filetream to upload</param>
+            <param name="fileName">Name of file to save in the bucket</param>
+            <param name="threads">Number of simultaneous upload threads</param>
+            <param name="blockSize">Block size for each file part, minimum block size is 100000000 bytes (100mb) </param>
+            <param name="fileContentType">The MIME type of the content of the file, which will be returned in the Content-Type header when downloading 
+                                          the file. Use the Content-Type b2/x-auto to automatically set the stored Content-Type post upload. In the case 
+                                          where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
+            <returns>B2File object of the new file</returns>
+        </member>
+        <member name="T:B2API.B2Bucket">
+            <summary>
+            B2Bucket object
+            </summary>
+        </member>
+        <member name="F:B2API.B2Bucket.bucketId">
+            <summary>
+            ID of the bucket
+            </summary>
+        </member>
+        <member name="F:B2API.B2Bucket.accountId">
+            <summary>
+            Buckets owner account ID
+            </summary>
+        </member>
+        <member name="F:B2API.B2Bucket.bucketName">
+            <summary>
+            Bucket name
+            </summary>
+        </member>
+        <member name="F:B2API.B2Bucket.bucketType">
+            <summary>
+            Bucket type
+            </summary>
+        </member>
+        <member name="T:B2API.B2BucketType">
+            <summary>
+            bucket type
+            </summary>
+        </member>
+        <member name="F:B2API.B2BucketType.allPublic">
+            Public              
+        </member>
+        <member name="F:B2API.B2BucketType.allPrivate">
+            <summary>
+            Private
+            </summary>
+        </member>
+        <member name="T:B2API.B2Exception">
+            <summary>
+            B2API exception
+            </summary>
+        </member>
+        <member name="P:B2API.B2Exception.HttpStatusCode">
+            <summary>
+            Status code, see B2 docs for details
+            </summary>
+        </member>
+        <member name="P:B2API.B2Exception.ErrorCode">
+            <summary>
+            Error code, see B2 docs for details
+            </summary>
+        </member>
+        <member name="M:B2API.B2Exception.#ctor(System.String)">
+            <summary>
+            Creat new B2Exceptions
+            </summary>
+            <param name="message">Error Message,  see B2 docs for details</param>
+        </member>
+        <member name="T:B2API.B2File">
+            <summary>
+            The JSON response for B2 File object
+            </summary>
+        </member>
+        <member name="F:B2API.B2File.action">
+            <summary>
+            File action, upload etc..
+            </summary>
+        </member>
+        <member name="F:B2API.B2File.accountId">
+            <summary>
+            Your account ID.
+            </summary>
+        </member>
+        <member name="F:B2API.B2File.bucketId">
+            <summary>
+            The bucket that the file is in.
+            </summary>
+        </member>
+        <member name="F:B2API.B2File.contentLength">
+            <summary>
+            The number of bytes stored in the file. 
+            </summary>
+        </member>
+        <member name="F:B2API.B2File.contentSha1">
+            <summary>
+            The Sha1 hash of the contents of the file stored in B2. 
+            </summary>
+        </member>
+        <member name="F:B2API.B2File.contentType">
+            <summary>
+            The MIME type of the file.
+            </summary>
+        </member>
+        <member name="F:B2API.B2File.fileId">
+            <summary>
+            The unique identifier for this version of this file.
+            </summary>
+        </member>
+        <member name="F:B2API.B2File.fileInfo">
+            <summary>
+            The custom information that was uploaded with the file. This is a JSON object, holding the name/value pairs that were uploaded with the file. 
+            </summary>
+        </member>
+        <member name="F:B2API.B2File.fileName">
+            <summary>
+            The name of this file, which can be used with 
+            </summary>
+        </member>
+        <member name="F:B2API.B2File.uploadTimestamp">
+            <summary>
+            This is a UTC time when this file was uploaded. It is a base 10 number of milliseconds since midnight, January 1, 1970 UTC. 
+            </summary>
+        </member>
+        <member name="T:B2API.B2FilePart">
+            <summary>
+            The JSON response for file part successfully uploaded.
+            </summary>
+        </member>
+        <member name="F:B2API.B2FilePart.contentLength">
+            <summary>
+            The number of bytes stored in the part. 
+            </summary>
+        </member>
+        <member name="F:B2API.B2FilePart.contentSha1">
+            <summary>
+            The SHA1 of the bytes stored in the part. 
+            </summary>
+        </member>
+        <member name="F:B2API.B2FilePart.fileId">
+            <summary>
+            The unique ID for uploading this file. 
+            </summary>
+        </member>
+        <member name="F:B2API.B2FilePart.partNumber">
+            <summary>
+            Which part this is. 
+            </summary>
+        </member>
+        <member name="T:B2API.B2Error">
+            <summary>
+            Error returned from B2 API
+            </summary>
+        </member>
+        <member name="F:B2API.B2Error.status">
+            <summary>
+            Status code
+            </summary>
+        </member>
+        <member name="F:B2API.B2Error.code">
+            <summary>
+            Error code
+            </summary>
+        </member>
+        <member name="F:B2API.B2Error.message">
+            <summary>
+            Error message
+            </summary>
+        </member>
+        <member name="T:B2API.B2UploadUrl">
+            <summary>
+            The JSON response for uploading a file. 
+            </summary>
+        </member>
+        <member name="F:B2API.B2UploadUrl.bucketId">
+            <summary>
+            The unique ID of the bucket. 
+            </summary>
+        </member>
+        <member name="F:B2API.B2UploadUrl.uploadUrl">
+            <summary>
+            The URL that can be used to upload files to this bucket
+            </summary>
+        </member>
+        <member name="F:B2API.B2UploadUrl.authorizationToken">
+            <summary>
+            The authorizationToken that must be used when uploading files to this bucket. 
+            This token is valid for 24 hours or until the uploadUrl endpoint rejects an upload.
+            </summary>
+        </member>
+        <member name="T:B2API.B2UploadPartUrl">
+            <summary>
+            The JSON response for uploading a file part. 
+            </summary>
+        </member>
+        <member name="F:B2API.B2UploadPartUrl.authorizationToken">
+            <summary>
+            The authorizationToken that must be used when uploading files to this bucket. 
+            This token is valid for 24 hours or until the uploadUrl endpoint rejects an upload.
+            </summary>
+        </member>
+        <member name="F:B2API.B2UploadPartUrl.fileId">
+            <summary>
+            The unique ID of file being uploaded. 
+            </summary>
+        </member>
+        <member name="F:B2API.B2UploadPartUrl.uploadUrl">
+            <summary>
+            The URL that can be used to upload parts of this file
+            </summary>
         </member>
     </members>
 </doc>

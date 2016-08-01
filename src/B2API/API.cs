@@ -203,6 +203,69 @@ namespace B2API
         }
 
         /// <summary>
+        /// Lists all of the versions of all of the files contained in one bucket, in alphabetical order by file name, and by reverse of date/time uploaded 
+        /// for versions of files with the same name. 
+        /// </summary>
+        /// <param name="bucket">Bucket object to look for file names in.</param>
+        /// <param name="startFromFileName">The first file name to return. If there is a file with this name, it will be returned in the list. If not,
+        ///                                 the first file name after thi. </param>
+        /// <param name="returncount">Optional: Number of file names to return max: 1000 default: 1000</param>
+        /// <returns>A List of file objects</returns>
+        public async Task<List<B2File>> ListFileVersions(B2Bucket bucket, string startFromFileName = "", int returncount = 1000)
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("Authorization", _authToken);
+            string content = "{\"bucketId\":\"" + bucket.bucketId + "\",\n" +
+                            "\"startFileName\":\"" + startFromFileName + "\",\n" +
+                            "\"maxFileCount\":" + returncount.ToString() + "}";
+            var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_list_file_versions", new StringContent(content));
+            if (!response.IsSuccessStatusCode)
+            {
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
+                {
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
+                };
+            }
+            else
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                Dictionary<string, List<B2File>> values = JsonConvert.DeserializeObject<Dictionary<string, List<B2File>>>(json);
+                List<B2File> files = values["files"];
+                return files;
+            }
+        }
+
+        /// <summary>
+        /// Gets information about one file stored in B2. 
+        /// </summary>
+        /// <param name="file">b2File object</param>
+        /// <returns>B2FileInfo object</returns>
+        public async Task<B2File> GetFileInfo(B2File file)
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("Authorization", _authToken);
+            string content = "{\"fileId\":\"" + file.fileId + "\"}";
+            var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_get_file_info", new StringContent(content));
+            if (!response.IsSuccessStatusCode)
+            {
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
+                {
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
+                };
+            }
+            else
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                B2File canceledFile = JsonConvert.DeserializeObject<B2File>(json);
+                return canceledFile;
+            }
+        }
+
+        /// <summary>
         /// Downloads the provided file. this function allowes for downloading large files without storing in memory
         /// </summary>
         /// <param name="file">File object to download</param>
@@ -242,13 +305,44 @@ namespace B2API
         /// <param name="file">File object to download</param>
         /// <param name="streamToWriteTo">Stream to write downloaded file to</param>
         /// <returns>Task object</returns>
-        public async Task DownloadFile(B2File file, Stream streamToWriteTo)
+        public async Task DownloadFileByID(B2File file, Stream streamToWriteTo)
         {
             var client = new HttpClient();
             HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, _downloadUrl + "/b2api/v1/b2_download_file_by_id");
             msg.Headers.Add("Authorization", _authToken);
             msg.Content = new StringContent("{\"fileId\":\"" + file.fileId + "\"}");
             HttpResponseMessage response = await client.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead);
+            if (!response.IsSuccessStatusCode)
+            {
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
+                {
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
+                };
+            }
+            else
+            {
+                using (Stream streamToReadFrom = await response.Content.ReadAsStreamAsync())
+                {
+                    await streamToReadFrom.CopyToAsync(streamToWriteTo);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Downloads one file by providing the name of the bucket and the name of the file. 
+        /// </summary>
+        /// <param name="bucket">Bucket object to download from</param>
+        /// <param name="file">File object to download</param>
+        /// <param name="streamToWriteTo">filestream to write data to</param>
+        /// <returns>Task object</returns>
+        public async Task DownloadFileByName(B2Bucket bucket, B2File file, Stream streamToWriteTo)
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("Authorization", _authToken);            
+            HttpResponseMessage response = await client.GetAsync(_downloadUrl + "/file/" + bucket.bucketName + "/" + file.fileName, HttpCompletionOption.ResponseHeadersRead);            
+            
             if (!response.IsSuccessStatusCode)
             {
                 B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
@@ -328,21 +422,19 @@ namespace B2API
         /// Uploads one file to B2, returning its unique file ID.
         /// </summary>
         /// <param name="bucket">Bucket object to upload the file to</param>
+        /// <param name="uploadURL">Upload URL object from GetUploadURL</param>
         /// <param name="fileName">The name of the file</param>
         /// <param name="fileBytes">The file data in a byte form</param>
         /// <param name="fileContentType">The MIME type of the content of the file, which will be returned in the Content-Type header when downloading 
         ///                               the file. Use the Content-Type b2/x-auto to automatically set the stored Content-Type post upload. In the case 
         ///                               where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
         /// <returns>File object for the uploaded file</returns>
-        public async Task<B2File> UploadFile(B2Bucket bucket, string fileName, byte[] fileBytes, string fileContentType = "b2/x-auto")
+        public async Task<B2File> UploadFile(B2Bucket bucket, B2UploadUrl uploadURL, string fileName, byte[] fileBytes, string fileContentType = "b2/x-auto")
         {
             bool success = false;
             int maxfailures = 2;        //AS per the API recomendation
             while (!success)
             {
-
-                B2UploadUrl uploadURL = GetUploadURL(bucket).Result;
-
                 //Generate the sha1 hash required for the upload
                 SHA1 sha1 = SHA1.Create();
                 byte[] hashData = sha1.ComputeHash(fileBytes, 0, fileBytes.Length);
@@ -425,8 +517,8 @@ namespace B2API
         /// <param name="fileContentType">The MIME type of the content of the file, which will be returned in the Content-Type header when downloading 
         ///                               the file. Use the Content-Type b2/x-auto to automatically set the stored Content-Type post upload. In the case 
         ///                               where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
-        /// <returns>B2LargeFileUpload object</returns>
-        public async Task<B2LargeFileUpload> StartLargeFile(B2Bucket bucket, string fileName, string fileContentType)
+        /// <returns>B2File object</returns>
+        public async Task<B2File> StartLargeFile(B2Bucket bucket, string fileName, string fileContentType)
         {
             var client = new HttpClient();
             client.DefaultRequestHeaders.Add("Authorization", _authToken);
@@ -446,7 +538,7 @@ namespace B2API
             else
             {
                 var json = await response.Content.ReadAsStringAsync();
-                B2LargeFileUpload deletedFile = JsonConvert.DeserializeObject<B2LargeFileUpload>(json);
+                B2File deletedFile = JsonConvert.DeserializeObject<B2File>(json);
                 return deletedFile;
             }
         }
@@ -454,7 +546,8 @@ namespace B2API
         /// <summary>
         /// Uploads one part of a large file to B2, using an file ID obtained from StartLargeFile
         /// </summary>
-        /// <param name="largeFile">B2LargeFileUpload object from StartLargeFile</param>
+        /// <param name="largeFile">B2File object from StartLargeFile</param>
+        /// <param name="uploadURL">UploadPartURL object from GetUploadPartURL</param>
         /// <param name="fileBytes">File data to upload</param>
         /// <param name="sha1Str">SHA1 checksum for the upload</param>
         /// <param name="fileContentType">The MIME type of the content of the file, which will be returned in the Content-Type header when downloading 
@@ -462,13 +555,12 @@ namespace B2API
         ///                               where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
         /// <param name="partNumber">A number from 1 to 10000. The parts uploaded for one file must have contiguous numbers, starting with 1. </param>
         /// <returns>True on success</returns>
-        private async Task<bool> UploadPart(B2LargeFileUpload largeFile, byte[] fileBytes, string sha1Str, string fileContentType, int partNumber)
+        private async Task<bool> UploadPart(B2File largeFile, B2UploadPartUrl uploadURL, byte[] fileBytes, string sha1Str, string fileContentType, int partNumber)
         {
             bool success = false;
-            int maxfailures = 5;        //AS per the API recomendation
+            int maxfailures = 2;        //AS per the API recomendation
             while (!success)
             {
-                B2UploadPartUrl uploadURL = GetUploadPartURL(largeFile.fileId).Result;
                 //Generate the sha1 hash required for the uploa
 
                 var client = new HttpClient();
@@ -508,33 +600,14 @@ namespace B2API
         }
 
         /// <summary>
-        /// Returns the SHA1 checksume of the provided file bytes
-        /// </summary>
-        /// <param name="fileBytes">Data to calulate checksum</param>
-        /// <returns>hex String of the checksum</returns>
-        public string GetSha1Checksum(byte[] fileBytes)
-        {
-            SHA1 sha1 = SHA1.Create();
-            byte[] hashData = sha1.ComputeHash(fileBytes, 0, fileBytes.Length);
-
-            StringBuilder sb = new StringBuilder();
-            foreach (byte b in hashData)
-            {
-                sb.Append(b.ToString("x2"));
-            }
-            string sha1Str = sb.ToString();
-            return sha1Str;
-        }
-
-        /// <summary>
         /// Converts the parts that have been uploaded into a single B2 file.
         /// </summary>
         /// <param name="sha1array">An array of hex SHA1 checksums of the parts of the large file. This is a double-check that the right parts were 
         ///                         uploaded in the right order, and that none were missed. Note that the part numbers start at 1, and the SHA1 of the
         ///                         part 1 is the first string in the array, at index 0. </param>
-        /// <param name="fileUpload">B2LargeFileUpload object from StartLargeFile</param>
-        /// <returns>B2LargeFile object of the new file</returns>
-        public async Task<B2LargeFile> FinishLargeFile(List<string> sha1array, B2LargeFileUpload fileUpload)
+        /// <param name="fileUpload">B2File object from StartLargeFile</param>
+        /// <returns>B2File object of the new file</returns>
+        public async Task<B2File> FinishLargeFile(List<string> sha1array, B2File fileUpload)
         {
             var client = new HttpClient();
             client.DefaultRequestHeaders.Add("Authorization", _authToken);
@@ -560,9 +633,92 @@ namespace B2API
             else
             {
                 var json = await response.Content.ReadAsStringAsync();
-                B2LargeFile deletedFile = JsonConvert.DeserializeObject<B2LargeFile>(json);
+                B2File deletedFile = JsonConvert.DeserializeObject<B2File>(json);
                 return deletedFile;
             }
+        }
+
+        /// <summary>
+        /// Cancels the upload of a large file, and deletes all of the parts that have been uploaded.
+        /// </summary>
+        /// <param name="fileUpload">B2File object to cancel</param>
+        /// <returns>B2File object of the canceled upload</returns>
+        public async Task<B2File> CancelLargeFile(B2File fileUpload)
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("Authorization", _authToken);
+            string content = "{\"fileId\":\"" + fileUpload.fileId + "\"}";
+            var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_cancel_large_file", new StringContent(content));
+            if (!response.IsSuccessStatusCode)
+            {
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
+                {
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
+                };
+            }
+            else
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                B2File canceledFile = JsonConvert.DeserializeObject<B2File>(json);
+                return canceledFile;
+            }
+        }
+
+        /// <summary>
+        /// Lists information about large file uploads that have been started, but have not been finished or canceled.
+        /// </summary>
+        /// <param name="bucket">The bucket to look for file names in.</param>
+        /// <param name="startFromFileName">The first upload to return. If there is an upload with this ID, it will be 
+        ///                                 returned in the list. If not, the first upload after this the first one after this ID. 
+        ///                                 </param>
+        /// <param name="returncount">The maximum number of files to return from this call. The default value is 100, and the maximum allowed is 100.</param>
+        /// <returns>A List of file uploads that have been started, but have not been finished or canceled.</returns>
+        public async Task<List<B2File>> ListUnfinishedLargeFiles(B2Bucket bucket, string startFromFileName = "", int returncount = 100)
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("Authorization", _authToken);
+            string content = "{\"bucketId\":\"" + bucket.bucketId + "\",\n" +
+                            "\"startFileName\":\"" + startFromFileName + "\",\n" +
+                            "\"maxFileCount\":" + returncount.ToString() + "}";
+            var response = await client.PostAsync(_apiURL + "/b2api/v1/b2_list_unfinished_large_files", new StringContent(content));
+            if (!response.IsSuccessStatusCode)
+            {
+                B2Error error = JsonConvert.DeserializeObject<B2Error>(await response.Content.ReadAsStringAsync());
+                throw new B2Exception(error.message)
+                {
+                    HttpStatusCode = error.status,
+                    ErrorCode = error.code
+                };
+            }
+            else
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                Dictionary<string, List<B2File>> values = JsonConvert.DeserializeObject<Dictionary<string, List<B2File>>>(json);
+                List<B2File> files = values["files"];
+                return files;
+            }
+        }
+
+        #region HelperFunctions
+        /// <summary>
+        /// Returns the SHA1 checksume of the provided file bytes
+        /// </summary>
+        /// <param name="fileBytes">Data to calulate checksum</param>
+        /// <returns>hex String of the checksum</returns>
+        public string GetSha1Checksum(byte[] fileBytes)
+        {
+            SHA1 sha1 = SHA1.Create();
+            byte[] hashData = sha1.ComputeHash(fileBytes, 0, fileBytes.Length);
+
+            StringBuilder sb = new StringBuilder();
+            foreach (byte b in hashData)
+            {
+                sb.Append(b.ToString("x2"));
+            }
+            string sha1Str = sb.ToString();
+            return sha1Str;
         }
 
         /// <summary>
@@ -576,15 +732,15 @@ namespace B2API
         /// <param name="fileContentType">The MIME type of the content of the file, which will be returned in the Content-Type header when downloading 
         ///                               the file. Use the Content-Type b2/x-auto to automatically set the stored Content-Type post upload. In the case 
         ///                               where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
-        /// <returns>B2LargeFile object of the new file</returns>
-        public async Task<B2LargeFile> UploadLargeFile(B2Bucket bucket, Stream fileStream, string fileName, int threads = 2, int blockSize=100000000, string fileContentType = "b2/x-auto")
+        /// <returns>B2File object of the new file</returns>
+        public async Task<B2File> UploadLargeFile(B2Bucket bucket, Stream fileStream, string fileName, int threads = 2, int blockSize=100000000, string fileContentType = "b2/x-auto")
         {
-            B2LargeFileUpload largefile = (await StartLargeFile(bucket, fileName, fileContentType));
+            B2File largefile = (await StartLargeFile(bucket, fileName, fileContentType));
             int filepart = 1;
             int lastSizeRead = blockSize;
             List<string> sha1values = new List<string>();
-
             Task<bool>[] tasks = new Task<bool>[threads];
+            B2UploadPartUrl[] uploadURL = new B2UploadPartUrl[threads];
 
             for (int i = 0; i < threads; i++)
             {
@@ -593,8 +749,9 @@ namespace B2API
                     byte[] bytes = new byte[blockSize];
                     lastSizeRead = fileStream.ReadAsync(bytes, 0, blockSize).Result;
                     string sha1 = GetSha1Checksum(bytes);
-                    sha1values.Add(sha1);                    
-                    tasks[i] = UploadPart(largefile, bytes, sha1, fileContentType, filepart);
+                    sha1values.Add(sha1);
+                    uploadURL[i] = GetUploadPartURL(largefile.fileId).Result;                  
+                    tasks[i] = UploadPart(largefile, uploadURL[i], bytes, sha1, fileContentType, filepart);
                     filepart++;
                 }
             }
@@ -608,9 +765,8 @@ namespace B2API
                         byte[] bytes = new byte[blockSize];
                         lastSizeRead = fileStream.ReadAsync(bytes, 0, blockSize).Result;
                         string sha1 = GetSha1Checksum(bytes);
-                        sha1values.Add(sha1);
-                        
-                        tasks[i] = UploadPart(largefile, bytes, sha1, fileContentType, filepart);
+                        sha1values.Add(sha1);                        
+                        tasks[i] = UploadPart(largefile, uploadURL[i], bytes, sha1, fileContentType, filepart);
                         filepart++;
                     }
                 }
@@ -624,6 +780,7 @@ namespace B2API
 
             return FinishLargeFile(sha1values, largefile).Result;
         }
+        #endregion
     }
 }
 
