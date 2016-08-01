@@ -8,6 +8,7 @@
 --suppress-warning:CS1705
 --optimize:False
 --emit-entry-point:True
+--generate-xml-documentation:True
 --output-name:APITest
 --file-version:1.0.0.0
 --version:1.0.0.0

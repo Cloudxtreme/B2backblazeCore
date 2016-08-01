@@ -10,6 +10,9 @@ using System.Security.Cryptography;
 
 namespace B2API
 {
+    /// <summary>
+    /// A simple API for Backblazes B2 service that uses .net core
+    /// </summary>
     public class B2API
     {
 
@@ -21,6 +24,9 @@ namespace B2API
 
         private string _credentials { get { return Convert.ToBase64String(Encoding.UTF8.GetBytes(_accountId + ":" + _applicationKey)); } }
 
+        /// <summary>
+        /// 
+        /// </summary>
         public B2API()
         {
             _accountId = "";
@@ -31,7 +37,7 @@ namespace B2API
         }
 
         /// <summary>
-        /// Authorizes the user accoung and key and gets the api url
+        /// Used to log in to the B2 API.
         /// Must be the first function called
         /// </summary>
         /// <param name="accountId">B2 Account ID</param>
@@ -65,9 +71,9 @@ namespace B2API
         }
 
         /// <summary>
-        /// Gets a list of the users current buckets
+        /// Lists buckets associated with an account, in alphabetical order by bucket ID. 
         /// </summary>
-        /// <returns>A list of Buckets</returns>
+        /// <returns>A list of Bucket objects</returns>
         public async Task<List<B2Bucket>> ListBuskets()
         {
             var client = new HttpClient();
@@ -92,10 +98,14 @@ namespace B2API
         }
 
         /// <summary>
-        /// Creats a new bucket
+        /// Creates a new bucket. A bucket belongs to the account used to create it.
         /// </summary>
-        /// <param name="bucketName">Name of the new bucket between 6 and 5 chars</param>
-        /// <param name="bucketType">Bucket type, private or public</param>
+        /// <param name="bucketName">The name to give the new bucket.
+        ///                          Bucket names must be a minimum of 6 and a maximum of 50 characters long, and must be globally unique; 
+        ///                          two different B2 accounts cannot have buckets with the name name. Bucket names can consist of: letters, 
+        ///                          digits, and "-". Bucket names cannot start with "b2-"; these are reserved for internal Backblaze use. </param>
+        /// <param name="bucketType">Either "allPublic", meaning that files in this bucket can be downloaded by anybody, or "allPrivate", 
+        ///                          meaning that you need a bucket authorization token to download the files. </param>
         /// <returns>New bucket object</returns>
         public async Task<B2Bucket> CreateBucket(string bucketName, B2BucketType bucketType)
         {            
@@ -124,12 +134,14 @@ namespace B2API
         }
 
         /// <summary>
-        /// Updates the bucket type (Private/Public)
+        /// Modifies the bucketType of an existing bucket. Can be used to allow everyone to download the contents of the bucket without 
+        /// providing any authorization, or to prevent anyone from downloading the contents of the bucket without providing a bucket auth token. 
         /// </summary>
-        /// <param name="bucket">Bucket you would like to change</param>
-        /// <param name="newBucketType">New bucket type</param>
-        /// <returns>Modified bucket</returns>
-        public async Task<B2Bucket> ChangeBucketType(B2Bucket bucket, B2BucketType newBucketType)
+        /// <param name="bucket">Bucket object to update</param>
+        /// <param name="newBucketType">Either "allPublic", meaning that files in this bucket can be downloaded by anybody, or "allPrivate", 
+        ///                             meaning that you need a bucket authorization token to download the files. </param>
+        /// <returns>Modified bucket object</returns>
+        public async Task<B2Bucket> UpdateBucket(B2Bucket bucket, B2BucketType newBucketType)
         {
             var client = new HttpClient();
             client.DefaultRequestHeaders.Add("Authorization", _authToken);
@@ -156,13 +168,15 @@ namespace B2API
         }
 
         /// <summary>
-        /// Returns a list of files
+        /// This call returns at most 1000 file names, but it can be called repeatedly to scan through all of the file names in a bucket. Each time 
+        /// you call, the last file retunred can be used as the starting point for the next call. 
         /// </summary>
-        /// <param name="bucket">Bucket to get list of files from</param>
-        /// <param name="startFromFileName">Optional: start the list from this file name (i.e. the last file returned)</param>
+        /// <param name="bucket">Bucket object to look for file names in.</param>
+        /// <param name="startFromFileName">The first file name to return. If there is a file with this name, it will be returned in the list. If not,
+        ///                                 the first file name after thi. </param>
         /// <param name="returncount">Optional: Number of file names to return max: 1000 default: 1000</param>
         /// <returns>A List of file objects</returns>
-        public async Task<List<B2File>> ListFiles(B2Bucket bucket, string startFromFileName = "", int returncount = 1000)
+        public async Task<List<B2File>> ListFileNames(B2Bucket bucket, string startFromFileName = "", int returncount = 1000)
         {
             var client = new HttpClient();
             client.DefaultRequestHeaders.Add("Authorization", _authToken);
@@ -223,7 +237,7 @@ namespace B2API
         }
 
         /// <summary>
-        /// Download a file to a provided stream
+        /// Downloads one file from B2. 
         /// </summary>
         /// <param name="file">File object to download</param>
         /// <param name="streamToWriteTo">Stream to write downloaded file to</param>
@@ -256,9 +270,9 @@ namespace B2API
         /// <summary>
         /// Deletes the provided file
         /// </summary>
-        /// <param name="file">file object to delete</param>
-        /// <returns>file object deleted</returns>
-        public async Task<B2File> DeleteFile(B2File file)
+        /// <param name="file">File object to delete</param>
+        /// <returns>the file object just deleted</returns>
+        public async Task<B2File> DeleteFileVersion(B2File file)
         {
             var client = new HttpClient();
             client.DefaultRequestHeaders.Add("Authorization", _authToken);
@@ -285,9 +299,9 @@ namespace B2API
         /// <summary>
         /// Gets a upload url and auth token for a upload
         /// </summary>
-        /// <param name="bucket">bucket uploading to</param>
-        /// <returns>upload url object</returns>
-        private async Task<B2UploadUrl> GetUploadURL(B2Bucket bucket)
+        /// <param name="bucket">Bucket object you wish to upload to</param>
+        /// <returns>Upload url object</returns>
+        public async Task<B2UploadUrl> GetUploadURL(B2Bucket bucket)
         {
             var client = new HttpClient();
             client.DefaultRequestHeaders.Add("Authorization", _authToken);
@@ -311,14 +325,16 @@ namespace B2API
         }
 
         /// <summary>
-        /// Uploads a file to the provided bucket. should only be used for small files as the file contents are loaded into memory
+        /// Uploads one file to B2, returning its unique file ID.
         /// </summary>
-        /// <param name="bucket">bucket to upload to</param>
-        /// <param name="fileName">filename to save file in the bucket</param>
-        /// <param name="fileBytes">file data in a byte form</param>
-        /// <param name="fileContentType">File content type, default: b2/x-auto</param>
+        /// <param name="bucket">Bucket object to upload the file to</param>
+        /// <param name="fileName">The name of the file</param>
+        /// <param name="fileBytes">The file data in a byte form</param>
+        /// <param name="fileContentType">The MIME type of the content of the file, which will be returned in the Content-Type header when downloading 
+        ///                               the file. Use the Content-Type b2/x-auto to automatically set the stored Content-Type post upload. In the case 
+        ///                               where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
         /// <returns>File object for the uploaded file</returns>
-        public async Task<B2File> UploadSmallFile(B2Bucket bucket, string fileName, byte[] fileBytes, string fileContentType = "b2/x-auto")
+        public async Task<B2File> UploadFile(B2Bucket bucket, string fileName, byte[] fileBytes, string fileContentType = "b2/x-auto")
         {
             bool success = false;
             int maxfailures = 2;        //AS per the API recomendation
@@ -376,9 +392,9 @@ namespace B2API
         /// <summary>
         /// Gets a file upload url for a multi part file upload
         /// </summary>
-        /// <param name="fileid">it profided by start file part</param>
+        /// <param name="fileid">ID profided by start file part</param>
         /// <returns>B2UploadPartUrl object</returns>
-        private async Task<B2UploadPartUrl> GetUploadPartURL(string fileid)
+        public async Task<B2UploadPartUrl> GetUploadPartURL(string fileid)
         {
             var client = new HttpClient();
             client.DefaultRequestHeaders.Add("Authorization", _authToken);
@@ -405,10 +421,12 @@ namespace B2API
         /// Starts the large file upload process
         /// </summary>
         /// <param name="bucket">Bucket object to upload to</param>
-        /// <param name="fileName">Name to save file as in bucket</param>
-        /// <param name="fileContentType">file content type</param>
-        /// <returns></returns>
-        private async Task<B2LargeFileUpload> StartLargeFile(B2Bucket bucket, string fileName, string fileContentType)
+        /// <param name="fileName">The name of the file</param>
+        /// <param name="fileContentType">The MIME type of the content of the file, which will be returned in the Content-Type header when downloading 
+        ///                               the file. Use the Content-Type b2/x-auto to automatically set the stored Content-Type post upload. In the case 
+        ///                               where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
+        /// <returns>B2LargeFileUpload object</returns>
+        public async Task<B2LargeFileUpload> StartLargeFile(B2Bucket bucket, string fileName, string fileContentType)
         {
             var client = new HttpClient();
             client.DefaultRequestHeaders.Add("Authorization", _authToken);
@@ -434,15 +452,17 @@ namespace B2API
         }
 
         /// <summary>
-        /// Upload a file part 
+        /// Uploads one part of a large file to B2, using an file ID obtained from StartLargeFile
         /// </summary>
         /// <param name="largeFile">B2LargeFileUpload object from StartLargeFile</param>
-        /// <param name="fileBytes">file data to upload</param>
-        /// <param name="sha1Str">sha1 checksum for the upload</param>
-        /// <param name="fileContentType">file content type</param>
-        /// <param name="partNumber">file part sequence number</param>
-        /// <returns></returns>
-        private async Task<bool> UploadFilePart(B2LargeFileUpload largeFile, byte[] fileBytes, string sha1Str, string fileContentType, int partNumber)
+        /// <param name="fileBytes">File data to upload</param>
+        /// <param name="sha1Str">SHA1 checksum for the upload</param>
+        /// <param name="fileContentType">The MIME type of the content of the file, which will be returned in the Content-Type header when downloading 
+        ///                               the file. Use the Content-Type b2/x-auto to automatically set the stored Content-Type post upload. In the case 
+        ///                               where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
+        /// <param name="partNumber">A number from 1 to 10000. The parts uploaded for one file must have contiguous numbers, starting with 1. </param>
+        /// <returns>True on success</returns>
+        private async Task<bool> UploadPart(B2LargeFileUpload largeFile, byte[] fileBytes, string sha1Str, string fileContentType, int partNumber)
         {
             bool success = false;
             int maxfailures = 5;        //AS per the API recomendation
@@ -488,11 +508,11 @@ namespace B2API
         }
 
         /// <summary>
-        /// Returns the sha1 checksume of the provided file bytes
+        /// Returns the SHA1 checksume of the provided file bytes
         /// </summary>
-        /// <param name="fileBytes">data to calulate checksum</param>
-        /// <returns>string of the checksum</returns>
-        private string GetSha1Checksum(byte[] fileBytes)
+        /// <param name="fileBytes">Data to calulate checksum</param>
+        /// <returns>hex String of the checksum</returns>
+        public string GetSha1Checksum(byte[] fileBytes)
         {
             SHA1 sha1 = SHA1.Create();
             byte[] hashData = sha1.ComputeHash(fileBytes, 0, fileBytes.Length);
@@ -507,12 +527,14 @@ namespace B2API
         }
 
         /// <summary>
-        /// Finish the largefile upload process
+        /// Converts the parts that have been uploaded into a single B2 file.
         /// </summary>
-        /// <param name="sha1array">array of file part checksums</param>
+        /// <param name="sha1array">An array of hex SHA1 checksums of the parts of the large file. This is a double-check that the right parts were 
+        ///                         uploaded in the right order, and that none were missed. Note that the part numbers start at 1, and the SHA1 of the
+        ///                         part 1 is the first string in the array, at index 0. </param>
         /// <param name="fileUpload">B2LargeFileUpload object from StartLargeFile</param>
         /// <returns>B2LargeFile object of the new file</returns>
-        private async Task<B2LargeFile> FinishLargeFile(List<string> sha1array, B2LargeFileUpload fileUpload)
+        public async Task<B2LargeFile> FinishLargeFile(List<string> sha1array, B2LargeFileUpload fileUpload)
         {
             var client = new HttpClient();
             client.DefaultRequestHeaders.Add("Authorization", _authToken);
@@ -547,11 +569,13 @@ namespace B2API
         /// Upload a large file in chunks
         /// </summary>
         /// <param name="bucket">Bucket object to upload to</param>
-        /// <param name="fileStream">filetream to upload</param>
-        /// <param name="fileName">name of file to save in the bucket</param>
-        /// <param name="threads">number of simultaneous upload threads</param>
-        /// <param name="blockSize">block size for each file part, minimum block size is 100000000 bytes (100mb) </param>
-        /// <param name="fileContentType">fine content type</param>
+        /// <param name="fileStream">Filetream to upload</param>
+        /// <param name="fileName">Name of file to save in the bucket</param>
+        /// <param name="threads">Number of simultaneous upload threads</param>
+        /// <param name="blockSize">Block size for each file part, minimum block size is 100000000 bytes (100mb) </param>
+        /// <param name="fileContentType">The MIME type of the content of the file, which will be returned in the Content-Type header when downloading 
+        ///                               the file. Use the Content-Type b2/x-auto to automatically set the stored Content-Type post upload. In the case 
+        ///                               where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
         /// <returns>B2LargeFile object of the new file</returns>
         public async Task<B2LargeFile> UploadLargeFile(B2Bucket bucket, Stream fileStream, string fileName, int threads = 2, int blockSize=100000000, string fileContentType = "b2/x-auto")
         {
@@ -570,7 +594,7 @@ namespace B2API
                     lastSizeRead = fileStream.ReadAsync(bytes, 0, blockSize).Result;
                     string sha1 = GetSha1Checksum(bytes);
                     sha1values.Add(sha1);                    
-                    tasks[i] = UploadFilePart(largefile, bytes, sha1, fileContentType, filepart);
+                    tasks[i] = UploadPart(largefile, bytes, sha1, fileContentType, filepart);
                     filepart++;
                 }
             }
@@ -586,7 +610,7 @@ namespace B2API
                         string sha1 = GetSha1Checksum(bytes);
                         sha1values.Add(sha1);
                         
-                        tasks[i] = UploadFilePart(largefile, bytes, sha1, fileContentType, filepart);
+                        tasks[i] = UploadPart(largefile, bytes, sha1, fileContentType, filepart);
                         filepart++;
                     }
                 }

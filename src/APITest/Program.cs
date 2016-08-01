@@ -19,7 +19,7 @@ namespace APITest
             List<B2API.B2Bucket> buckets =  t.ListBuskets().Result;
 
             //get a list of files in the first bucket
-            List<B2API.B2File> files = t.ListFiles(buckets[0]).Result;
+            List<B2API.B2File> files = t.ListFileNames(buckets[0]).Result;
 
             //download first file in first bucket
             var dl = t.DownloadFile(files[0], "test.jpg");
