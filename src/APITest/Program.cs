@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -19,14 +20,14 @@ namespace APITest
             List<B2API.B2Bucket> buckets =  t.ListBuskets().Result;
 
             //get a list of files in the first bucket
-            List<B2API.B2File> files = t.ListFileNames(buckets[0]).Result;
+            List<B2API.B2File> files = t.ListFileNames(buckets[1]).Result;
 
             //download first file in first bucket
             var dl = t.DownloadFileByID(files[0], "test.jpg");
-            
+
             //wait for download to finish
             Console.WriteLine();
-            Console.Write("Downloading...");  
+            Console.Write("Downloading...");
             while (!dl.IsCompleted)
             {
                 Console.Write(".");
@@ -37,7 +38,9 @@ namespace APITest
             //upload file to bucket
             using (var fileStream = new System.IO.FileStream("test.jpg", System.IO.FileMode.Open, System.IO.FileAccess.Read))
             {
-                var ul = t.UploadLargeFile(buckets[1], fileStream, "largetest.jpg", 2);
+                
+                byte[] bytes = File.ReadAllBytes("test.jpg");
+                var ul = t.UploadFile(buckets[1], t.GetUploadURL(buckets[0]).Result, "uploadtest.jpg", bytes);
                 //wait for file upload to finish
                 Console.Write("Uploading...");
                 while (!ul.IsCompleted)

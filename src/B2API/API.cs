@@ -555,14 +555,14 @@ namespace B2API
         ///                               where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
         /// <param name="partNumber">A number from 1 to 10000. The parts uploaded for one file must have contiguous numbers, starting with 1. </param>
         /// <returns>True on success</returns>
-        private async Task<bool> UploadPart(B2File largeFile, B2UploadPartUrl uploadURL, byte[] fileBytes, string sha1Str, string fileContentType, int partNumber)
+        private async Task<B2FilePart> UploadPart(B2File largeFile, B2UploadPartUrl uploadURL, byte[] fileBytes, string fileContentType, int partNumber)
         {
             bool success = false;
             int maxfailures = 2;        //AS per the API recomendation
             while (!success)
             {
                 //Generate the sha1 hash required for the uploa
-
+                string sha1Str = GetSha1Checksum(fileBytes);
                 var client = new HttpClient();
                 client.DefaultRequestHeaders.Add("Authorization", uploadURL.authorizationToken);
                 client.DefaultRequestHeaders.Add("X-Bz-Content-Sha1", sha1Str);
@@ -590,13 +590,13 @@ namespace B2API
                 }
                 else
                 {
-                    // var json = await response.Content.ReadAsStringAsync();
-                    // B2File uploadedFile = JsonConvert.DeserializeObject<B2File>(json);
-                    return true;
+                    var json = await response.Content.ReadAsStringAsync();
+                    B2FilePart uploadedFile = JsonConvert.DeserializeObject<B2FilePart>(json);
+                    return uploadedFile;
                 }
             }
 
-            return false; //should never get here
+            return null; //should never get here
         }
 
         /// <summary>
@@ -739,7 +739,7 @@ namespace B2API
             int filepart = 1;
             int lastSizeRead = blockSize;
             List<string> sha1values = new List<string>();
-            Task<bool>[] tasks = new Task<bool>[threads];
+            Task<B2FilePart>[] tasks = new Task<B2FilePart>[threads];
             B2UploadPartUrl[] uploadURL = new B2UploadPartUrl[threads];
 
             for (int i = 0; i < threads; i++)
@@ -748,10 +748,9 @@ namespace B2API
                 {
                     byte[] bytes = new byte[blockSize];
                     lastSizeRead = fileStream.ReadAsync(bytes, 0, blockSize).Result;
-                    string sha1 = GetSha1Checksum(bytes);
-                    sha1values.Add(sha1);
+                    string sha1 = GetSha1Checksum(bytes);                   
                     uploadURL[i] = GetUploadPartURL(largefile.fileId).Result;                  
-                    tasks[i] = UploadPart(largefile, uploadURL[i], bytes, sha1, fileContentType, filepart);
+                    tasks[i] = UploadPart(largefile, uploadURL[i], bytes, fileContentType, filepart);
                     filepart++;
                 }
             }
@@ -760,14 +759,23 @@ namespace B2API
             {
                 for (int i = 0; i < threads; i++)
                 {
-                    if (tasks[i].IsCompleted && lastSizeRead == blockSize)
-                    {                        
-                        byte[] bytes = new byte[blockSize];
-                        lastSizeRead = fileStream.ReadAsync(bytes, 0, blockSize).Result;
-                        string sha1 = GetSha1Checksum(bytes);
-                        sha1values.Add(sha1);                        
-                        tasks[i] = UploadPart(largefile, uploadURL[i], bytes, sha1, fileContentType, filepart);
-                        filepart++;
+                    if (tasks[i].IsCompleted)
+                    {
+                        if (tasks[i].Result.partNumber > sha1values.Count)
+                            sha1values.Add(tasks[i].Result.contentSha1);
+                        else
+                            sha1values.Insert(tasks[i].Result.partNumber, tasks[i].Result.contentSha1);
+                        if (lastSizeRead == blockSize)
+                        {
+                            byte[] bytes = new byte[blockSize];
+                            lastSizeRead = fileStream.ReadAsync(bytes, 0, blockSize).Result;
+                            string sha1 = GetSha1Checksum(bytes);
+                            sha1values.Add(sha1);
+                            tasks[i] = UploadPart(largefile, uploadURL[i], bytes, fileContentType, filepart);
+                            filepart++;
+                        }
+                        else
+                            tasks[i] = null;
                     }
                 }
             }
@@ -775,7 +783,13 @@ namespace B2API
             for (int i = 0; i < threads; i++)
             {
                 if (tasks[i] != null)
+                {
                     tasks[i].Wait();
+                    if (tasks[i].Result.partNumber > sha1values.Count)
+                        sha1values.Add(tasks[i].Result.contentSha1);
+                    else
+                        sha1values.Insert(tasks[i].Result.partNumber, tasks[i].Result.contentSha1);
+                }
             }
 
             return FinishLargeFile(sha1values, largefile).Result;

@@ -80,7 +80,7 @@
             <param name="file">b2File object</param>
             <returns>B2FileInfo object</returns>
         </member>
-        <member name="M:B2API.B2API.DownloadFile(B2API.B2File,System.String)">
+        <member name="M:B2API.B2API.DownloadFileByID(B2API.B2File,System.String)">
             <summary>
             Downloads the provided file. this function allowes for downloading large files without storing in memory
             </summary>
@@ -150,7 +150,7 @@
                                           where a file extension is absent or the lookup fails, the Content-Type is set to application/octet-stream.</param>
             <returns>B2File object</returns>
         </member>
-        <member name="M:B2API.B2API.UploadPart(B2API.B2File,B2API.B2UploadPartUrl,System.Byte[],System.String,System.String,System.Int32)">
+        <member name="M:B2API.B2API.UploadPart(B2API.B2File,B2API.B2UploadPartUrl,System.Byte[],System.String,System.Int32)">
             <summary>
             Uploads one part of a large file to B2, using an file ID obtained from StartLargeFile
             </summary>
